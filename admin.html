@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin | Anil Babyshop</title>
+    <!-- FontAwesome & Google Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            background-color: #fdf5f7;
+            color: #333;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* --- SIDEBAR NAVIGASI ADMIN --- */
+        .sidebar {
+            width: 260px;
+            background: #ffffff;
+            border-right: 2px solid #ffd6de;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .admin-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 18px;
+            color: #d81b60;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #ffe4e9;
+        }
+
+        .admin-brand i {
+            font-size: 24px;
+            color: #ff477e;
+        }
+
+        .nav-menu {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .nav-item button {
+            width: 100%;
+            background: none;
+            border: none;
+            padding: 12px 15px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+
+        .nav-item button:hover, .nav-item button.active {
+            background: #ffe4e9;
+            color: #d81b60;
+            font-weight: 600;
+        }
+
+        /* --- KONTEN UTAMA PANEL --- */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .header-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .header-title h1 {
+            font-size: 22px;
+            color: #d81b60;
+        }
+
+        .btn-view-site {
+            background: #ff477e;
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 3px 6px rgba(255,71,126,0.2);
+        }
+
+        /* --- TAB KONTEN --- */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* --- CARD FORM --- */
+        .card {
+            background: #ffffff;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            border: 1px solid #ffe4e9;
+            margin-bottom: 25px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px dashed #ffd6de;
+            padding-bottom: 10px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 10px 14px;
+            border: 1px solid #ffd6de;
+            border-radius: 8px;
+            outline: none;
+            font-size: 13px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: #ff477e;
+        }
+
+        .btn-submit {
+            background: #d81b60;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 8px rgba(216,27,96,0.25);
+            transition: background 0.2s;
+        }
+
+        .btn-submit:hover {
+            background: #b8144d;
+        }
+
+        /* --- PREVIEW GAMBAR --- */
+        .image-preview-box {
+            width: 100px;
+            height: 100px;
+            border: 2px dashed #ffb6c1;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #fff8f9;
+            margin-top: 5px;
+        }
+
+        .image-preview-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        /* --- TABEL DAFTAR PRODUK --- */
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ffe4e9;
+        }
+
+        th {
+            background: #fff0f3;
+            color: #d81b60;
+            font-weight: 600;
+        }
+
+        .btn-action-sm {
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .btn-edit { background: #ffcc00; color: #333; }
+        .btn-delete { background: #ff477e; color: white; }
+
+        /* --- RESPONSIF UNTUK TABLET & HP --- */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 2px solid #ffd6de;
+                padding: 15px;
+            }
+
+            .nav-menu {
+                flex-direction: row;
+                overflow-x: auto;
+            }
+
+            .nav-item button {
+                white-space: nowrap;
+            }
+
+            .main-content {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR NAVIGASI ADMIN -->
+    <div class="sidebar">
+        <div class="admin-brand">
+            <i class="fa-solid fa-baby-carriage"></i>
+            <span>Admin Anil Babyshop</span>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item">
+                <button class="active" onclick="switchTab('tab-produk', this)">
+                    <i class="fa-solid fa-box"></i> Kelola Produk & Foto
+                </button>
+            </li>
+            <li class="nav-item">
+                <button onclick="switchTab('tab-diskon', this)">
+                    <i class="fa-solid fa-tags"></i> Pengaturan Diskon
+                </button>
+            </li>
+            <li class="nav-item">
+                <button onclick="switchTab('tab-info-toko', this)">
+                    <i class="fa-solid fa-store"></i> Informasi Toko & Kontak
+                </button>
+            </li>
+        </ul>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        
+        <div class="header-title">
+            <h1>Dashboard Pengelolaan Toko</h1>
+            <a href="index.html" class="btn-view-site" target="_blank">
+                <i class="fa-solid fa-globe"></i> Lihat Toko Utama
+            </a>
+        </div>
+
+        <!-- ================= TAB 1: KELOLA PRODUK & FOTO ================= -->
+        <div id="tab-produk" class="tab-content active">
+            <div class="card">
+                <div class="card-title">
+                    <i class="fa-solid fa-plus-circle" style="color: #d81b60;"></i> Form Tambah / Edit Produk
+                </div>
+
+                <form id="formProduk" onsubmit="saveProduct(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Nama Produk</label>
+                            <input type="text" id="prodName" placeholder="Contoh: Popok Bayi Premium" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Kategori</label>
+                            <select id="prodCategory">
+                                <option>Popok Bayi</option>
+                                <option>Susu & Makanan</option>
+                                <option>Tissue & Toiletries</option>
+                                <option>Pakaian & Perlengkapan</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Ukuran / Variasi (S, M, L, XL, dll)</label>
+                            <input type="text" id="prodSize" placeholder="Contoh: S, M, L" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Harga Produk (Rp)</label>
+                            <input type="number" id="prodPrice" placeholder="55000" required>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Foto Produk (URL Gambar)</label>
+                            <input type="url" id="prodImgUrl" placeholder="https://link-gambar.com/foto.jpg" oninput="updateImagePreview(this.value)">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Atau Upload Foto Lokal</label>
+                            <input type="file" accept="image/*" onchange="previewLocalImage(event)">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Preview Foto</label>
+                            <div class="image-preview-box">
+                                <img id="imgPreview" src="https://cdn-icons-png.flaticon.com/512/3082/3082060.png" alt="Preview">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-submit">
+                        <i class="fa-solid fa-floppy-disk"></i> Simpan Produk ke Cloud
+                    </button>
+                </form>
+            </div>
+
+            <!-- TABEL DAFTAR PRODUK TERSEDIA -->
+            <div class="card">
+                <div class="card-title">
+                    <i class="fa-solid fa-list" style="color: #d81b60;"></i> Daftar Produk Aktif
+                </div>
+
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Foto</th>
+                                <th>Nama Produk</th>
+                                <th>Kategori</th>
+                                <th>Ukuran</th>
+                                <th>Harga</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableProductBody">
+                            <tr>
+                                <td><img src="https://cdn-icons-png.flaticon.com/512/3082/3082060.png" width="40"></td>
+                                <td>Popok Bayi Premium</td>
+                                <td>Popok Bayi</td>
+                                <td>S, M, L, XL</td>
+                                <td>Rp 55.000</td>
+                                <td>
+                                    <button class="btn-action-sm btn-edit"><i class="fa-solid fa-pen"></i></button>
+                                    <button class="btn-action-sm btn-delete"><i class="fa-solid fa-trash"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><img src="https://cdn-icons-png.flaticon.com/512/3050/3050148.png" width="40"></td>
+                                <td>Susu Formula Bayi</td>
+                                <td>Susu & Makanan</td>
+                                <td>400g, 800g</td>
+                                <td>Rp 85.000</td>
+                                <td>
+                                    <button class="btn-action-sm btn-edit"><i class="fa-solid fa-pen"></i></button>
+                                    <button class="btn-action-sm btn-delete"><i class="fa-solid fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 2: PENGATURAN DISKON ================= -->
+        <div id="tab-diskon" class="tab-content">
+            <div class="card">
+                <div class="card-title">
+                    <i class="fa-solid fa-percent" style="color: #d81b60;"></i> Pengaturan Diskon & Promo Toko
+                </div>
+
+                <form onsubmit="saveDiscount(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Pilih Produk Promo</label>
+                            <select>
+                                <option>Semua Produk (Diskon Toko)</option>
+                                <option>Popok Bayi Premium</option>
+                                <option>Susu Formula Bayi</option>
+                                <option>Tissue Basah Antiseptik</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Persentase Diskon (%)</label>
+                            <input type="number" min="1" max="99" placeholder="Contoh: 10">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Label Promo Banner</label>
+                            <input type="text" placeholder="Contoh: PROMO MINGGU INI!">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-submit">
+                        <i class="fa-solid fa-tags"></i> Terapkan Diskon
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================= TAB 3: INFORMASI TOKO & FOOTER ================= -->
+        <div id="tab-info-toko" class="tab-content">
+            <div class="card">
+                <div class="card-title">
+                    <i class="fa-solid fa-pen-to-square" style="color: #d81b60;"></i> Ubah Informasi Toko & Footer
+                </div>
+
+                <form onsubmit="saveShopInfo(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Nomor WhatsApp Toko (Order Direct)</label>
+                            <input type="text" id="storeWA" value="6281235778393" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Email Customer Service</label>
+                            <input type="email" id="storeEmail" value="cs@anilbabyshop.com" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Nama / Lokasi Offline Store</label>
+                            <input type="text" id="storeLocation" value="Pasar Tambak Rejo">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Deskripsi Singkat Toko (Footer)</label>
+                        <textarea rows="3">Partner terpercaya untuk kebutuhan sehari-hari keluarga Anda sejak 2002.</textarea>
+                    </div>
+
+                    <button type="submit" class="btn-submit">
+                        <i class="fa-solid fa-floppy-disk"></i> Perbarui Informasi Toko
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JAVASCRIPT SIMULASI INTEGRASI & KONTROL PANEL -->
+    <script>
+        // Fungsi perpindahan Tab Admin
+        function switchTab(tabId, element) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.nav-item button').forEach(btn => btn.classList.remove('active'));
+
+            document.getElementById(tabId).classList.add('active');
+            element.classList.add('active');
+        }
+
+        // Preview Foto dari URL
+        function updateImagePreview(url) {
+            if(url.trim() !== '') {
+                document.getElementById('imgPreview').src = url;
+            }
+        }
+
+        // Preview Foto dari File Lokal
+        function previewLocalImage(event) {
+            const reader = new FileReader();
+            reader.onload = function() {
+                document.getElementById('imgPreview').src = reader.result;
+            }
+            if(event.target.files[0]) {
+                reader.readAsDataURL(event.target.files[0]);
+            }
+        }
+
+        // Simulasi Simpan Produk
+        function saveProduct(event) {
+            event.preventDefault();
+            alert("Produk berhasil disimpan/diperbarui di Firebase Cloud!");
+        }
+
+        // Simulasi Simpan Diskon
+        function saveDiscount(event) {
+            event.preventDefault();
+            alert("Diskon berhasil diterapkan di toko!");
+        }
+
+        // Simulasi Simpan Info Toko
+        function saveShopInfo(event) {
+            event.preventDefault();
+            alert("Informasi toko & footer berhasil diperbarui!");
+        }
+    </script>
+</body>
+</html>
