@@ -161,6 +161,7 @@
             </div>
         </div>
 
+        <!-- 3. KATALOG PRODUK (TANPA BOX URL GAMBAR UTAMA) -->
         <div id="tab-products" class="tab-section">
             <div class="card">
                 <div class="card-title"><i class="fa-solid fa-box-archive"></i> Tambah / Edit Produk</div>
@@ -185,10 +186,9 @@
                         <div class="form-group full-width">
                             <label>Pengaturan Ukuran, Harga & Foto per Size (Format: Ukuran : Harga : URLFoto, pisahkan koma)</label>
                             <input type="text" id="prod-sizes" placeholder="S : Rp 62.000 : https://..., M : Rp 68.000 : https://..." required>
+                            <small style="color: #666; font-size: 11px;">*Foto utama produk otomatis mengambil foto dari varian ukuran pertama.</small>
                         </div>
 
-                        <div class="form-group full-width"><label>URL Gambar Utama Produk (PNG/JPG)</label><input type="text" id="prod-image" required></div>
-                        
                         <div class="form-group checkbox-group"><input type="checkbox" id="prod-bestseller"><label for="prod-bestseller">Jadikan Produk Best Seller (Terlaris)</label></div>
                         <div class="form-group checkbox-group"><input type="checkbox" id="prod-discount-check" onchange="toggleDiscountField()"><label for="prod-discount-check">Produk Promo Diskon</label></div>
                         
@@ -359,9 +359,12 @@
                 snap.forEach(d => {
                     const p = d.data();
                     let sizeStr = p.sizes ? p.sizes.map(s => `${s.size}: ${s.price}`).join(', ') : '-';
+                    // Ambil URL foto dari size pertama sebagai thumbnail preview
+                    let thumbImg = (p.sizes && p.sizes.length > 0 && p.sizes[0].imageUrl) ? p.sizes[0].imageUrl : (p.imageUrl || '');
+                    
                     tbody.innerHTML += `
                         <tr>
-                            <td><img src="${p.imageUrl}" class="img-preview-sm"></td>
+                            <td><img src="${thumbImg}" class="img-preview-sm" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3082/3082060.png'"></td>
                             <td><strong>${p.name}</strong><br><small style="color:#666;">Size: ${sizeStr}</small></td>
                             <td>${p.brand}</td>
                             <td>${p.category || '-'}</td>
@@ -380,7 +383,6 @@
                 document.getElementById('prod-name').value = p.name || '';
                 document.getElementById('prod-brand').value = p.brand || '';
                 document.getElementById('prod-category').value = p.category || '';
-                document.getElementById('prod-image').value = p.imageUrl || '';
                 document.getElementById('prod-bestseller').checked = !!p.isBestSeller;
                 
                 const isDisc = !!p.discount;
@@ -409,12 +411,15 @@
                     };
                 });
 
+                // Otomatis menetapkan foto utama dari size pertama
+                const mainImageUrl = (sizesArray.length > 0 && sizesArray[0].imageUrl) ? sizesArray[0].imageUrl : '';
+
                 const data = {
                     name: document.getElementById('prod-name').value,
                     brand: document.getElementById('prod-brand').value,
                     category: document.getElementById('prod-category').value,
                     sizes: sizesArray,
-                    imageUrl: document.getElementById('prod-image').value,
+                    imageUrl: mainImageUrl,
                     isBestSeller: document.getElementById('prod-bestseller').checked,
                     discount: document.getElementById('prod-discount-check').checked ? document.getElementById('prod-discount-text').value : ''
                 };
