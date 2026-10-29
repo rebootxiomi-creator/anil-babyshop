@@ -30,12 +30,11 @@
       window.cart = [];
       window.selectedProductVariants = {};
 
-      // FUNGSI FORMAT TITIK RIBUAN (cth: 62000 -> 62.000 atau Rp 62.000)
+      // FUNGSI FORMAT TITIK RIBUAN
       window.formatRupiahTitik = function(priceInput) {
         if (!priceInput) return '0';
         let num = typeof priceInput === 'number' ? priceInput : parseInt(String(priceInput).replace(/[^0-9]/g, '')) || 0;
         let formatted = num.toLocaleString('id-ID');
-        // Jika belum ada awalan "Rp", tambahkan "Rp " agar konsisten, atau biarkan angka saja jika diinginkan
         return formatted.startsWith('Rp') ? formatted : 'Rp ' + formatted;
       };
 
@@ -52,7 +51,7 @@
             if (data.storeAddress) document.getElementById("footer-address-text").innerText = data.storeAddress;
             if (data.phone) document.getElementById("footer-phone").innerText = data.phone;
             
-            // Render Ticker Promo
+            // Render 5 Ticker Promo Berjalan dari Admin
             const promoTrack = document.querySelector(".promo-track");
             if (promoTrack) {
               let promoHTML = "";
@@ -91,7 +90,7 @@
             renderProducts(window.allProductsData);
           }
 
-          // 4. Load Papan Informasi
+          // 4. Load Papan Informasi (Dukungan dari Database atau Default Lengkap 3 Papan)
           const infoSnap = await getDocs(collection(db, "info_board"));
           const infoContainer = document.getElementById("footer-info-cards");
           if (!infoSnap.empty) {
@@ -117,7 +116,7 @@
         }
       };
 
-      // Helper HTML Card Produk dengan Format Titik Ribuan
+      // Helper HTML Card Produk dengan Fallback Foto Utama
       function createProductCardHTML(p, cardPrefix) {
         const uniqueCardId = `${cardPrefix}-${p.id}`;
         const badge = p.isBestSeller ? `<span class="bestseller-badge"><i class="fa-solid fa-trophy"></i> Best Seller</span>` : 
@@ -127,7 +126,9 @@
         let defaultSize = sizesArray.length > 0 ? sizesArray[0].size : 'Standard';
         let rawPrice = sizesArray.length > 0 ? sizesArray[0].price : (p.price || '0');
         let defaultPriceFormatted = window.formatRupiahTitik(rawPrice);
-        let defaultImage = (sizesArray.length > 0 && sizesArray[0].imageUrl) ? sizesArray[0].imageUrl : p.imageUrl;
+        
+        // Fallback otomatis ke foto utama (p.imageUrl) jika foto per size kosong
+        let defaultImage = (sizesArray.length > 0 && sizesArray[0].imageUrl && sizesArray[0].imageUrl.trim() !== "") ? sizesArray[0].imageUrl : p.imageUrl;
 
         if (!window.selectedProductVariants[uniqueCardId]) {
             window.selectedProductVariants[uniqueCardId] = {
@@ -143,7 +144,7 @@
             sizeBtnsHTML = `<div class="size-selection"><label>Pilih Ukuran:</label><div class="size-buttons">`;
             sizesArray.forEach((s, idx) => {
                 const activeClass = idx === 0 ? 'active' : '';
-                const variantImg = s.imageUrl || p.imageUrl;
+                const variantImg = (s.imageUrl && s.imageUrl.trim() !== "") ? s.imageUrl : p.imageUrl;
                 const safeImg = variantImg.replace(/'/g, "\\'");
                 const safePrice = s.price.replace(/'/g, "\\'");
                 const safeSize = s.size.replace(/'/g, "\\'");
@@ -367,9 +368,11 @@
         .info-board-footer { margin-bottom: 15px; }
         .info-board-footer h4 { font-size: 12px; color: #d81b60; margin-bottom: 6px; font-weight: 700; text-align: left; }
         .info-cards-footer { display: flex; flex-direction: column; gap: 5px; max-width: 320px; }
+        
         .info-card { background: #fff; padding: 6px 10px; border-radius: 5px; border-left: 3px solid #ff477e; cursor: pointer; text-align: left; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
         .info-card h3 { font-size: 11px; color: #333; display: flex; align-items: center; justify-content: space-between; }
         .info-card h3 i.icon-left { color: #ff477e; margin-right: 5px; }
+
         .info-content { display: none; margin-top: 4px; font-size: 10px; color: #666; line-height: 1.3; border-top: 1px dashed #ffd6de; padding-top: 4px; }
         .info-card.active .info-content { display: block; }
         .info-card.active .fa-chevron-down { transform: rotate(180deg); }
@@ -534,8 +537,10 @@
             </div>
             <div class="footer-phone">
                 <i class="fa-brands fa-whatsapp"></i>
-                <span id="footer-phone">0822-2017-0073</span>
+                <span id="footer-phone">+62 822 2017 0073</span>
             </div>
+            
+            <!-- 3 PAPAN INFORMASI LENGKAP -->
             <div class="info-board-footer">
                 <h4><i class="fa-solid fa-circle-info"></i> Papan Informasi Toko</h4>
                 <div class="info-cards-footer" id="footer-info-cards">
@@ -543,8 +548,17 @@
                         <h3><span><i class="fa-solid fa-book-open icon-left"></i> Sejarah Toko</span> <i class="fa-solid fa-chevron-down"></i></h3>
                         <div class="info-content">Anil Babyshop berdiri sejak tahun 2023 di Pasar Tambak Rejo. Berawal dari toko sederhana, kami tumbuh menjadi pilihan utama para orang tua.</div>
                     </div>
+                    <div class="info-card">
+                        <h3><span><i class="fa-solid fa-truck-fast icon-left"></i> Informasi Pengiriman</span> <i class="fa-solid fa-chevron-down"></i></h3>
+                        <div class="info-content">Kami melayani pengiriman lokal dan ke seluruh wilayah. Pesanan sebelum jam 15.00 WIB dikirim pada hari yang sama.</div>
+                    </div>
+                    <div class="info-card">
+                        <h3><span><i class="fa-solid fa-shield-heart icon-left"></i> Kebijakan Garansi</span> <i class="fa-solid fa-chevron-down"></i></h3>
+                        <div class="info-content">Seluruh produk dijamin 100% Original. Garansi retur/tukar jika barang yang diterima tidak sesuai atau rusak.</div>
+                    </div>
                 </div>
             </div>
+
             <div class="follow-us-title">Follow Us</div>
             <div class="social-icons">
                 <a href="#"><i class="fa-brands fa-facebook-f"></i></a>
@@ -557,7 +571,7 @@
         </div>
     </footer>
 
-    <!-- LOGIKA KERANJANG BELANJA FORMAT TITIK & CHECKOUT WA -->
+    <!-- LOGIKA KERANJANG BELANJA & CHECKOUT WA -->
     <script>
         function parsePriceNum(priceStr) {
             return parseInt(String(priceStr).replace(/[^0-9]/g, '')) || 0;
