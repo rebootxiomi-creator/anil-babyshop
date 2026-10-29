@@ -121,12 +121,11 @@
                         <div class="form-group"><label>Nomor WhatsApp (+62...)</label><input type="text" id="store-phone" required></div>
                         <div class="form-group full-width"><label>Alamat Offline Store</label><textarea id="store-address" rows="3" required></textarea></div>
                         
-                        <!-- PENGATURAN 5 PROMO TICKER -->
-                        <div class="form-group full-width"><label>Teks Promo Berjalan (Ticker) 1</label><input type="text" id="promo-text-1" placeholder="cth: DISKON SPESIAL..."></div>
-                        <div class="form-group full-width"><label>Teks Promo Berjalan (Ticker) 2</label><input type="text" id="promo-text-2" placeholder="cth: GRATIS ONGKIR..."></div>
-                        <div class="form-group full-width"><label>Teks Promo Berjalan (Ticker) 3</label><input type="text" id="promo-text-3" placeholder="cth: CASHBACK VOUCHER..."></div>
-                        <div class="form-group full-width"><label>Teks Promo Berjalan (Ticker) 4</label><input type="text" id="promo-text-4" placeholder="cth: PRODUK TERBARU..."></div>
-                        <div class="form-group full-width"><label>Teks Promo Berjalan (Ticker) 5</label><input type="text" id="promo-text-5" placeholder="cth: KUNJUNGI STORE KAMI..."></div>
+                        <div class="form-group full-width"><label>Teks Promo Berjalan (Ticker) 1</label><input type="text" id="promo-text-1"></div>
+                        <div class="form-group full-width"><label>Teks Promo Berjalan (Ticker) 2</label><input type="text" id="promo-text-2"></div>
+                        <div class="form-group full-width"><label>Teks Promo Berjalan (Ticker) 3</label><input type="text" id="promo-text-3"></div>
+                        <div class="form-group full-width"><label>Teks Promo Berjalan (Ticker) 4</label><input type="text" id="promo-text-4"></div>
+                        <div class="form-group full-width"><label>Teks Promo Berjalan (Ticker) 5</label><input type="text" id="promo-text-5"></div>
                     </div>
                     <button type="submit" class="btn-submit"><i class="fa-solid fa-floppy-disk"></i> Simpan Pengaturan</button>
                 </form>
@@ -205,15 +204,16 @@
             </div>
         </div>
 
+        <!-- 4. PAPAN INFORMASI DENGAN FITUR EDIT & HAPUS -->
         <div id="tab-info" class="tab-section">
             <div class="card">
-                <div class="card-title"><i class="fa-solid fa-pen-to-square"></i> Tambah Papan Informasi Toko</div>
+                <div class="card-title"><i class="fa-solid fa-pen-to-square"></i> Tambah / Edit Papan Informasi Toko</div>
                 <form id="form-info">
                     <input type="hidden" id="info-id">
                     <div class="form-grid">
-                        <div class="form-group"><label>Judul Informasi</label><input type="text" id="info-title" required></div>
-                        <div class="form-group"><label>Class Ikon FontAwesome</label><input type="text" id="info-icon" value="fa-solid fa-circle-info" required></div>
-                        <div class="form-group full-width"><label>Isi Informasi Lengkap</label><textarea id="info-content" rows="4" required></textarea></div>
+                        <div class="form-group"><label>Judul Informasi</label><input type="text" id="info-title" placeholder="cth: Sejarah Toko" required></div>
+                        <div class="form-group"><label>Class Ikon FontAwesome</label><input type="text" id="info-icon" value="fa-solid fa-book-open" required></div>
+                        <div class="form-group full-width"><label>Isi Informasi Lengkap</label><textarea id="info-content" rows="4" placeholder="Tuliskan isi informasi di sini..." required></textarea></div>
                     </div>
                     <button type="submit" class="btn-submit"><i class="fa-solid fa-floppy-disk"></i> Simpan Informasi</button>
                 </form>
@@ -329,7 +329,7 @@
                         promoText4: document.getElementById('promo-text-4').value,
                         promoText5: document.getElementById('promo-text-5').value
                     }, { merge: true });
-                    alert("Pengaturan Toko & 5 Ticker Promo Berhasil Disimpan!");
+                    alert("Pengaturan Toko & Promo Berhasil Disimpan!");
                 } catch (err) { alert("Gagal: " + err.message); }
             };
 
@@ -436,21 +436,58 @@
 
             window.deleteProduct = async (id) => { if (confirm("Hapus produk?")) { await deleteDoc(doc(db, "products", id)); loadProducts(); } };
 
+            // Load & Manage Papan Informasi
             async function loadInfo() {
                 const snap = await getDocs(collection(db, "info_board"));
                 const tbody = document.getElementById('table-info-body');
                 tbody.innerHTML = '';
                 snap.forEach(d => {
                     const i = d.data();
-                    tbody.innerHTML += `<tr><td><strong>${i.title}</strong></td><td>${i.content}</td><td><button class="btn-action btn-delete" onclick="deleteInfo('${d.id}')"><i class="fa-solid fa-trash"></i></button></td></tr>`;
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${i.title}</strong></td>
+                            <td>${i.content}</td>
+                            <td>
+                                <button class="btn-action btn-edit" onclick="editInfo('${d.id}', '${encodeURIComponent(JSON.stringify(i))}')"><i class="fa-solid fa-pen-to-square"></i></button>
+                                <button class="btn-action btn-delete" onclick="deleteInfo('${d.id}')"><i class="fa-solid fa-trash"></i></button>
+                            </td>
+                        </tr>`;
                 });
             }
+
+            window.editInfo = function(id, encodedData) {
+                const i = JSON.parse(decodeURIComponent(encodedData));
+                document.getElementById('info-id').value = id;
+                document.getElementById('info-title').value = i.title || '';
+                document.getElementById('info-icon').value = i.icon || 'fa-solid fa-book-open';
+                document.getElementById('info-content').value = i.content || '';
+                document.getElementById('page-title').scrollIntoView({ behavior: 'smooth' });
+            };
+
             document.getElementById('form-info').onsubmit = async (e) => {
                 e.preventDefault();
-                await addDoc(collection(db, "info_board"), { title: document.getElementById('info-title').value, icon: document.getElementById('info-icon').value, content: document.getElementById('info-content').value });
-                alert("Informasi Disimpan!"); document.getElementById('form-info').reset(); loadInfo();
+                const infoId = document.getElementById('info-id').value;
+                const data = {
+                    title: document.getElementById('info-title').value,
+                    icon: document.getElementById('info-icon').value,
+                    content: document.getElementById('info-content').value
+                };
+
+                const { doc, setDoc, addDoc, collection } = window.firestoreMethods;
+                if (infoId) {
+                    await setDoc(doc(db, "info_board", infoId), data, { merge: true });
+                    alert("Informasi Berhasil Diperbarui!");
+                } else {
+                    await addDoc(collection(db, "info_board"), data);
+                    alert("Informasi Berhasil Ditambahkan!");
+                }
+
+                document.getElementById('form-info').reset();
+                document.getElementById('info-id').value = '';
+                loadInfo();
             };
-            window.deleteInfo = async (id) => { if (confirm("Hapus info?")) { await deleteDoc(doc(db, "info_board", id)); loadInfo(); } };
+
+            window.deleteInfo = async (id) => { if (confirm("Hapus informasi ini?")) { await deleteDoc(doc(db, "info_board", id)); loadInfo(); } };
 
             loadBrands(); loadProducts(); loadInfo();
         }
