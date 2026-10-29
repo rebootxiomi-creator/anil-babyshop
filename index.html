@@ -116,7 +116,7 @@
         }
       };
 
-      // Helper HTML Card Produk dengan Fallback Foto Utama
+            // Helper HTML Card Produk dengan Foto Utama Mengikuti Size Pertama
       function createProductCardHTML(p, cardPrefix) {
         const uniqueCardId = `${cardPrefix}-${p.id}`;
         const badge = p.isBestSeller ? `<span class="bestseller-badge"><i class="fa-solid fa-trophy"></i> Best Seller</span>` : 
@@ -127,8 +127,11 @@
         let rawPrice = sizesArray.length > 0 ? sizesArray[0].price : (p.price || '0');
         let defaultPriceFormatted = window.formatRupiahTitik(rawPrice);
         
-        // Fallback otomatis ke foto utama (p.imageUrl) jika foto per size kosong
-        let defaultImage = (sizesArray.length > 0 && sizesArray[0].imageUrl && sizesArray[0].imageUrl.trim() !== "") ? sizesArray[0].imageUrl : p.imageUrl;
+        // Mengambil foto dari size pertama (jika ada dan valid), jika tidak ada baru pakai foto utama produk
+        let defaultImage = p.imageUrl;
+        if (sizesArray.length > 0 && sizesArray[0].imageUrl && sizesArray[0].imageUrl.trim() !== "") {
+            defaultImage = sizesArray[0].imageUrl;
+        }
 
         if (!window.selectedProductVariants[uniqueCardId]) {
             window.selectedProductVariants[uniqueCardId] = {
@@ -144,7 +147,9 @@
             sizeBtnsHTML = `<div class="size-selection"><label>Pilih Ukuran:</label><div class="size-buttons">`;
             sizesArray.forEach((s, idx) => {
                 const activeClass = idx === 0 ? 'active' : '';
+                // Tentukan foto per size, fallback ke foto utama jika kosong
                 const variantImg = (s.imageUrl && s.imageUrl.trim() !== "") ? s.imageUrl : p.imageUrl;
+                
                 const safeImg = variantImg.replace(/'/g, "\\'");
                 const safePrice = s.price.replace(/'/g, "\\'");
                 const safeSize = s.size.replace(/'/g, "\\'");
