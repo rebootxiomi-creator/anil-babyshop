@@ -25,6 +25,11 @@
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
 
+      // State Global
+      window.allProductsData = [];
+      window.cart = [];
+      window.selectedProductVariants = {}; // Menyimpan pilihan size, harga, & foto aktif per produk
+
       // FUNGSI LOAD DATA DINAMIS DARI FIREBASE
       window.loadStoreData = async function() {
         try {
@@ -39,7 +44,7 @@
             if (data.phone) document.getElementById("footer-phone").innerText = data.phone;
           }
 
-          // 2. Load Brand Slider (Diduplikasi Agar Mulus/Seamless)
+          // 2. Load Brand Slider (Hanya Logo)
           const brandSnap = await getDocs(collection(db, "brands"));
           const brandTrack = document.getElementById("brand-track");
           if (!brandSnap.empty) {
@@ -47,53 +52,25 @@
             brandSnap.forEach(doc => {
               const b = doc.data();
               const logoImg = b.logoUrl ? `<img src="${b.logoUrl}" alt="${b.name}" class="brand-img-icon">` : `<i class="fa-solid fa-star"></i>`;
-              brandHTML += `<div class="brand-item">${logoImg} <span>${b.name}</span></div>`;
+              brandHTML += `<div class="brand-item">${logoImg}</div>`;
             });
-            // Duplikasi dua kali untuk looping animasi tanpa patah
             brandTrack.innerHTML = brandHTML + brandHTML;
           }
 
           // 3. Load Produk
           const prodSnap = await getDocs(collection(db, "products"));
-          const bestsellerGrid = document.getElementById("bestseller-grid");
-          const discountGrid = document.getElementById("discount-grid");
+          window.allProductsData = [];
 
           if (!prodSnap.empty) {
-            let bestHTML = "";
-            let discHTML = "";
-
             prodSnap.forEach(doc => {
-              const p = doc.data();
-              const badge = p.isBestSeller ? `<span class="bestseller-badge"><i class="fa-solid fa-trophy"></i> Best Seller</span>` : 
-                            (p.discount ? `<span class="discount-badge">${p.discount}</span>` : '');
-
-              const origPrice = p.originalPrice ? `<span class="original-price">${p.originalPrice}</span>` : '';
-
-              const cardHTML = `
-                <div class="product-card" data-brand="${p.brand}">
-                    ${badge}
-                    <div class="product-img-box">
-                        <img src="${p.imageUrl}" alt="${p.name}" class="product-img">
-                    </div>
-                    <div class="product-brand-tag">${p.brand}</div>
-                    <h3 class="product-title">${p.name}</h3>
-                    <div class="price-container">
-                        ${origPrice}
-                        <span class="product-price">${p.price}</span>
-                    </div>
-                    <button class="btn-wa" onclick="buyViaWA('${p.name}', '${p.price}')"><i class="fa-brands fa-whatsapp"></i> Beli Sekarang</button>
-                </div>
-              `;
-
-              if (p.isBestSeller) bestHTML += cardHTML;
-              if (p.discount) discHTML += cardHTML;
+              const data = doc.data();
+              data.id = doc.id;
+              window.allProductsData.push(data);
             });
-
-            if (bestHTML) bestsellerGrid.innerHTML = bestHTML;
-            if (discHTML) discountGrid.innerHTML = discHTML;
+            renderProducts(window.allProductsData);
           }
 
-          // 4. Load Papan Informasi (di Footer Sisi Kiri)
+          // 4. Load Papan Informasi (di Footer)
           const infoSnap = await getDocs(collection(db, "info_board"));
           const infoContainer = document.getElementById("footer-info-cards");
           if (!infoSnap.empty) {
@@ -114,9 +91,146 @@
           }
 
         } catch (error) {
-          console.log("Menggunakan data fallback default:", error);
+          console.log("Error loading store data:", error);
           initInfoToggle();
         }
+      };
+
+      // Helper untuk membuat HTML Card Produk lengkap dengan pilihan Size
+      function createProductCardHTML(p, cardPrefix) {
+        const uniqueCardId = `${cardPrefix}-${p.id}`;
+        const badge = p.isBestSeller ? `<span class="bestseller-badge"><i class="fa-solid fa-trophy"></i> Best Seller</span>` : 
+                      (p.discount ? `<span class="discount-badge">${p.discount}</span>` : '');
+
+        let sizesArray = p.sizes || [];
+        let defaultSize = sizesArray.length > 0 ? sizesArray[0].size : 'Standard';
+        let defaultPrice = sizesArray.length > 0 ? sizesArray[0].price : (p.price || 'Rp 0');
+        let defaultImage = (sizesArray.length > 0 && sizesArray[0].imageUrl) ? sizesArray[0].imageUrl : p.imageUrl;
+
+        // Inisialisasi state varian untuk produk ini jika belum ada
+        if (!window.selectedProductVariants[uniqueCardId]) {
+            window.selectedProductVariants[uniqueCardId] = {
+                size: defaultSize,
+                price: defaultPrice,
+                imageUrl: defaultImage
+            };
+        }
+
+        // Generate Tombol Size
+        let sizeBtnsHTML = "";
+        if (sizesArray.length > 0) {
+            sizeBtnsHTML = `<div class="size-selection"><label>Pilih Ukuran:</label><div class="size-buttons">`;
+            sizesArray.forEach((s, idx) => {
+                const activeClass = idx === 0 ? 'active' : '';
+                const variantImg = s.imageUrl || p.imageUrl;
+                // Escape string aman untuk Javascript inline
+                const safeImg = variantImg.replace(/'/g, "\\'");
+                const safePrice = s.price.replace(/'/g, "\\'");
+                const safeSize = s.size.replace(/'/g, "\\'");
+
+                sizeBtnsHTML += `<button class="size-btn ${activeClass}" onclick="changeProductVariant('${uniqueCardId}', '${safeSize}', '${safePrice}', '${safeImg}', this)">${s.size}</button>`;
+            });
+            sizeBtnsHTML += `</div></div>`;
+        }
+
+        return `
+          <div class="product-card" id="${uniqueCardId}" data-category="${p.category || p.brand || ''}" data-brand="${p.brand}">
+              ${badge}
+              <div class="product-img-box">
+                  <img src="${defaultImage}" alt="${p.name}" class="product-img" id="img-${uniqueCardId}">
+              </div>
+              <div class="product-brand-tag">${p.brand}</div>
+              <h3 class="product-title">${p.name}</h3>
+              
+              ${sizeBtnsHTML}
+
+              <div class="price-container">
+                  <span class="product-price" id="price-${uniqueCardId}">${defaultPrice}</span>
+              </div>
+              <button class="btn-cart-add" onclick="addSelectedToCart('${p.id}', '${p.name.replace(/'/g, "\\'")}', '${uniqueCardId}')">
+                  <i class="fa-solid fa-cart-plus"></i> + Keranjang
+              </button>
+          </div>
+        `;
+      }
+
+      // Fungsi Render Produk ke Grid
+      function renderProducts(productsList) {
+        const bestsellerGrid = document.getElementById("bestseller-grid");
+        const discountGrid = document.getElementById("discount-grid");
+        const allProductsGrid = document.getElementById("all-products-grid");
+
+        let bestHTML = "";
+        let discHTML = "";
+        let allHTML = "";
+
+        productsList.forEach(p => {
+          if (p.isBestSeller) bestHTML += createProductCardHTML(p, 'best');
+          if (p.discount) discHTML += createProductCardHTML(p, 'disc');
+          allHTML += createProductCardHTML(p, 'all'); // Menampilkan size & harga dinamis di "Semua Produk"
+        });
+
+        bestsellerGrid.innerHTML = bestHTML || '<p style="font-size:13px; color:#888;">Belum ada produk Best Seller.</p>';
+        discountGrid.innerHTML = discHTML || '<p style="font-size:13px; color:#888;">Belum ada produk Diskon.</p>';
+        if (allProductsGrid) allProductsGrid.innerHTML = allHTML;
+      }
+
+      // Fungsi Mengubah Size, Harga, dan Foto Produk secara Dinamis
+      window.changeProductVariant = function(uniqueCardId, size, price, imageUrl, btnElement) {
+        // Update State Varian
+        window.selectedProductVariants[uniqueCardId] = { size, price, imageUrl };
+
+        // Update Tampilan Harga & Gambar
+        const priceEl = document.getElementById(`price-${uniqueCardId}`);
+        const imgEl = document.getElementById(`img-${uniqueCardId}`);
+        if (priceEl) priceEl.innerText = price;
+        if (imgEl && imageUrl) imgEl.src = imageUrl;
+
+        // Highlight Tombol Size Aktif
+        const parent = btnElement.parentElement;
+        parent.querySelectorAll('.size-btn').forEach(btn => btn.classList.remove('active'));
+        btnElement.classList.add('active');
+      };
+
+      // Fungsi Menambahkan Varian Pilihan ke Keranjang
+      window.addSelectedToCart = function(productId, productName, uniqueCardId) {
+        const variant = window.selectedProductVariants[uniqueCardId];
+        const fullName = `${productName} (${variant.size})`;
+        const cartItemId = `${productId}-${variant.size}`;
+
+        const existing = window.cart.find(item => item.cartItemId === cartItemId);
+        if (existing) {
+            existing.qty += 1;
+        } else {
+            window.cart.push({
+                cartItemId: cartItemId,
+                id: productId,
+                name: fullName,
+                price: variant.price,
+                size: variant.size,
+                imageUrl: variant.imageUrl,
+                qty: 1
+            });
+        }
+        updateCartUI();
+        alert(`"${fullName}" telah ditambahkan ke keranjang!`);
+      };
+
+      // Fungsi Filter Berdasarkan Kategori
+      window.filterByCategory = function(keyword) {
+        if (keyword === 'all') {
+          renderProducts(window.allProductsData);
+        } else {
+          const filtered = window.allProductsData.filter(p => {
+            const cat = (p.category || '').toLowerCase();
+            const brand = (p.brand || '').toLowerCase();
+            const name = (p.name || '').toLowerCase();
+            const key = keyword.toLowerCase();
+            return cat.includes(key) || brand.includes(key) || name.includes(key);
+          });
+          renderProducts(filtered);
+        }
+        document.getElementById('catalog-section').scrollIntoView({ behavior: 'smooth' });
       };
 
       function initInfoToggle() {
@@ -131,480 +245,139 @@
     </script>
 
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        body {
-            background-color: #fdfafb;
-            color: #333;
-            overflow-x: hidden;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+        body { background-color: #fdfafb; color: #333; overflow-x: hidden; scroll-behavior: smooth; }
 
         /* --- HEADER STICKY / FREEZE --- */
-        .header-wrapper {
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            background-color: #fff;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.06);
-        }
+        .header-wrapper { position: sticky; top: 0; z-index: 1000; background-color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.06); }
+        .top-bar { background-color: #fff; padding: 12px 5%; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid #eee; }
+        .logo { display: flex; align-items: center; text-decoration: none; }
+        .logo-img { height: 48px; width: auto; object-fit: contain; }
 
-        .top-bar {
-            background-color: #fff;
-            padding: 12px 5%;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 20px;
-            border-bottom: 1px solid #eee;
-        }
+        .search-box { display: flex; flex: 1; max-width: 450px; border: 2px solid #ffb6c1; border-radius: 8px; overflow: hidden; }
+        .search-box input { border: none; padding: 10px 15px; width: 100%; outline: none; font-size: 14px; }
+        .search-box button { background: #ff85a2; color: white; border: none; padding: 10px 20px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 
-        .logo {
-            display: flex;
-            align-items: center;
-            text-decoration: none;
-        }
+        .header-info { display: flex; align-items: center; gap: 20px; font-size: 13px; }
+        .info-item { display: flex; align-items: center; gap: 8px; color: #555; }
+        .info-item i { font-size: 18px; color: #ff6584; }
+        
+        .cart-btn { background: #ffb6c1; padding: 8px 15px; border-radius: 8px; font-weight: 600; display: flex; align-items: center; gap: 8px; text-decoration: none; color: #550011; white-space: nowrap; cursor: pointer; border: none; }
+        .cart-btn:hover { background: #ff9ebb; }
 
-        .logo-img {
-            height: 48px;
-            width: auto;
-            object-fit: contain;
-        }
-
-        .search-box {
-            display: flex;
-            flex: 1;
-            max-width: 450px;
-            border: 2px solid #ffb6c1;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .search-box input {
-            border: none;
-            padding: 10px 15px;
-            width: 100%;
-            outline: none;
-            font-size: 14px;
-        }
-
-        .search-box button {
-            background: #ff85a2;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            white-space: nowrap;
-        }
-
-        .header-info {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            font-size: 13px;
-        }
-
-        .info-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: #555;
-        }
-
-        .info-item i {
-            font-size: 18px;
-            color: #ff6584;
-        }
-
-        .cart-btn {
-            background: #ffb6c1;
-            padding: 8px 15px;
-            border-radius: 8px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            text-decoration: none;
-            color: #550011;
-            white-space: nowrap;
-        }
-
-        nav {
-            background: #fff;
-            padding: 10px 5%;
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            border-bottom: 2px solid #fdf0f2;
-            font-size: 14px;
-            gap: 25px;
-        }
-
-        nav a {
-            text-decoration: none;
-            color: #444;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .admin-login-btn {
-            background: #ff477e;
-            color: white !important;
-            padding: 6px 14px;
-            border-radius: 6px;
-            font-weight: 600 !important;
-            transition: background 0.2s;
-        }
-
+        nav { background: #fff; padding: 10px 5%; display: flex; align-items: center; justify-content: flex-end; border-bottom: 2px solid #fdf0f2; font-size: 14px; gap: 25px; }
+        nav a { text-decoration: none; color: #444; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+        .admin-login-btn { background: #ff477e; color: white !important; padding: 6px 14px; border-radius: 6px; font-weight: 600 !important; transition: background 0.2s; }
         .admin-login-btn:hover { background: #d81b60; }
 
         /* --- BANNER PROMO TICKER --- */
-        .promo-ticker {
-            background: #ff4757;
-            color: white;
-            padding: 8px 0;
-            font-size: 13px;
-            font-weight: 600;
-            overflow: hidden;
-            white-space: nowrap;
-        }
-
-        .promo-track {
-            display: inline-block;
-            animation: scrollPromo 20s linear infinite;
-        }
-
-        .promo-item {
-            display: inline-block;
-            margin-right: 50px;
-        }
-
-        .promo-item span {
-            background: #fff;
-            color: #ff4757;
-            padding: 2px 8px;
-            border-radius: 4px;
-            margin-right: 8px;
-            font-size: 11px;
-            font-weight: 700;
-        }
-
-        @keyframes scrollPromo {
-            0% { transform: translateX(100%); }
-            100% { transform: translateX(-100%); }
-        }
+        .promo-ticker { background: #ff4757; color: white; padding: 8px 0; font-size: 13px; font-weight: 600; overflow: hidden; white-space: nowrap; }
+        .promo-track { display: inline-block; animation: scrollPromo 20s linear infinite; }
+        .promo-item { display: inline-block; margin-right: 50px; }
+        .promo-item span { background: #fff; color: #ff4757; padding: 2px 8px; border-radius: 4px; margin-right: 8px; font-size: 11px; font-weight: 700; }
+        @keyframes scrollPromo { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
 
         /* --- BANNER UTAMA --- */
-        .banner-container {
-            width: 90%;
-            max-width: 1200px;
-            margin: 25px auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .banner-box {
-            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-            border-radius: 15px;
-            padding: 22px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
+        .banner-container { width: 90%; max-width: 1200px; margin: 25px auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .banner-box { background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-radius: 15px; padding: 22px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
         .banner-box.pink { background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%); }
         .banner-box.purple { background: linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%); }
 
         .banner-text small { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; }
         .banner-text h3 { font-size: 18px; color: #222; margin: 4px 0; font-weight: 700; }
         .banner-text p { font-size: 12px; color: #555; margin-bottom: 12px; }
+        .banner-btn { background: #ff4757; color: white; border: none; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .banner-img-icon { font-size: 38px; color: #ff6584; background: #fff; width: 65px; height: 65px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 
-        .banner-btn {
-            background: #ff4757;
-            color: white;
-            border: none;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .banner-img-icon {
-            font-size: 38px;
-            color: #ff6584;
-            background: #fff;
-            width: 65px;
-            height: 65px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* --- IKON KATEGORI --- */
-        .quick-categories {
-            width: 90%;
-            max-width: 1200px;
-            margin: 20px auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-            gap: 12px;
-            background: #fff;
-            padding: 15px;
-            border-radius: 12px;
-        }
-
-        .cat-item { text-align: center; cursor: pointer; }
-        .cat-icon {
-            width: 50px;
-            height: 50px;
-            margin: 0 auto 6px auto;
-            background: #fff4f6;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            color: #ff477e;
-        }
-
+        /* --- IKON KATEGORI CEPAT --- */
+        .quick-categories { width: 90%; max-width: 1200px; margin: 20px auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; background: #fff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
+        .cat-item { text-align: center; cursor: pointer; transition: transform 0.2s; }
+        .cat-item:hover { transform: translateY(-3px); }
+        .cat-icon { width: 50px; height: 50px; margin: 0 auto 6px auto; background: #fff4f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color: #ff477e; }
         .cat-item span { font-size: 11px; font-weight: 600; color: #444; }
 
-        /* --- BRAND RUNNING SCROLL (SEAMLESS INFINITE) --- */
-        .brand-section {
-            background: #fff0f3;
-            padding: 12px 0;
-            overflow: hidden;
-            border-bottom: 1px solid #ffd6de;
-        }
-
-        .brand-title {
-            text-align: center;
-            font-size: 11px;
-            font-weight: 700;
-            color: #d81b60;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-        }
-
-        .brand-track {
-            display: flex;
-            width: max-content;
-            animation: scrollBrand 25s linear infinite;
-        }
-
+        /* --- BRAND RUNNING SCROLL --- */
+        .brand-section { background: #fff0f3; padding: 12px 0; overflow: hidden; border-bottom: 1px solid #ffd6de; }
+        .brand-title { text-align: center; font-size: 11px; font-weight: 700; color: #d81b60; text-transform: uppercase; margin-bottom: 10px; }
+        .brand-track { display: flex; width: max-content; animation: scrollBrand 25s linear infinite; align-items: center; }
         .brand-track:hover { animation-play-state: paused; }
-
-        .brand-item {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            font-weight: 700;
-            font-size: 13px;
-            color: #ff477e;
-            background: #fff;
-            margin: 0 6px;
-            padding: 6px 14px;
-            border-radius: 20px;
-            white-space: nowrap;
-        }
-
-        .brand-img-icon {
-            height: 20px;
-            width: auto;
-            object-fit: contain;
-        }
-
-        @keyframes scrollBrand {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-50%); } /* -50% karena konten sudah diduplikasi persis */
-        }
+        .brand-item { display: inline-flex; align-items: center; justify-content: center; background: #fff; margin: 0 10px; padding: 8px 15px; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
+        .brand-img-icon { height: 28px; width: auto; object-fit: contain; }
+        @keyframes scrollBrand { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
 
         /* --- KATALOG PRODUK --- */
-        .container {
-            width: 90%;
-            max-width: 1200px;
-            margin: 30px auto;
-        }
+        .container { width: 90%; max-width: 1200px; margin: 30px auto; }
+        .section-title { font-size: 18px; color: #d81b60; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
+        .product-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 20px; margin-bottom: 35px; }
 
-        .section-title {
-            font-size: 18px;
-            color: #d81b60;
-            font-weight: 700;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .product-card { background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #ffe4e9; text-align: center; display: flex; flex-direction: column; justify-content: space-between; position: relative; }
+        .discount-badge { position: absolute; top: 10px; left: 10px; background: #ff4757; color: white; font-size: 10px; font-weight: 700; padding: 3px 6px; border-radius: 4px; }
+        .bestseller-badge { position: absolute; top: 10px; right: 10px; background: #ffa502; color: white; font-size: 10px; font-weight: 700; padding: 3px 6px; border-radius: 4px; }
 
-        .product-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-            gap: 20px;
-            margin-bottom: 35px;
-        }
-
-        .product-card {
-            background: #fff;
-            border-radius: 12px;
-            padding: 16px;
-            border: 1px solid #ffe4e9;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            position: relative;
-        }
-
-        .discount-badge {
-            position: absolute;
-            top: 10px; left: 10px;
-            background: #ff4757; color: white;
-            font-size: 10px; font-weight: 700;
-            padding: 3px 6px; border-radius: 4px;
-        }
-
-        .bestseller-badge {
-            position: absolute;
-            top: 10px; right: 10px;
-            background: #ffa502; color: white;
-            font-size: 10px; font-weight: 700;
-            padding: 3px 6px; border-radius: 4px;
-        }
-
-        .product-img-box {
-            width: 100%; height: 160px;
-            display: flex; align-items: center; justify-content: center;
-            background: #fff8f9; border-radius: 8px; margin-bottom: 12px;
-        }
-
-        .product-img { max-height: 140px; max-width: 100%; object-fit: contain; }
+        .product-img-box { width: 100%; height: 160px; display: flex; align-items: center; justify-content: center; background: #fff8f9; border-radius: 8px; margin-bottom: 12px; }
+        .product-img { max-height: 140px; max-width: 100%; object-fit: contain; transition: all 0.2s ease; }
         .product-brand-tag { font-size: 10px; font-weight: 700; color: #ff6584; text-transform: uppercase; }
         .product-title { font-size: 14px; font-weight: 600; color: #222; margin-bottom: 6px; }
 
+        /* Styling Pilihan Size Interaktif di Card Produk */
+        .size-selection { margin: 8px 0; text-align: left; }
+        .size-selection label { font-size: 11px; color: #666; font-weight: 600; display: block; margin-bottom: 4px; }
+        .size-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
+        .size-btn { background: #f0f0f0; border: 1px solid #ddd; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; color: #444; transition: all 0.2s; }
+        .size-btn:hover { border-color: #ff477e; color: #ff477e; }
+        .size-btn.active { background: #ff477e; color: white; border-color: #ff477e; }
+
         .price-container { margin: 8px 0; display: flex; align-items: center; justify-content: center; gap: 6px; }
-        .original-price { text-decoration: line-through; color: #aaa; font-size: 12px; }
         .product-price { font-size: 16px; font-weight: 700; color: #d81b60; }
 
-        .btn-wa {
-            background: #25D366; color: white;
-            padding: 8px; border-radius: 6px;
-            font-size: 13px; font-weight: 600;
-            border: none; cursor: pointer;
-            display: flex; align-items: center; justify-content: center; gap: 6px;
-        }
+        .btn-cart-add { background: #ff477e; color: white; padding: 8px; border-radius: 6px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.2s; }
+        .btn-cart-add:hover { background: #d81b60; }
 
         /* --- FLOATING LOGO WA --- */
-        .wa-float {
-            position: fixed; bottom: 20px; right: 20px;
-            background: #25d366; color: white;
-            width: 50px; height: 50px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 26px; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            z-index: 1001; text-decoration: none;
-        }
+        .wa-float { position: fixed; bottom: 20px; right: 20px; background: #25d366; color: white; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); z-index: 1001; text-decoration: none; }
 
-        /* --- FOOTER RATA KIRI & PAPAN INFORMASI RINGKAS --- */
-        footer {
-            background-color: #fff4f6;
-            padding: 30px 5% 20px;
-            margin-top: 40px;
-            border-top: 1px solid #ffd6de;
-            color: #5a3d44;
-        }
+        /* --- MODAL KERANJANG BELANJA --- */
+        .modal-cart-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; }
+        .modal-cart-content { background: white; width: 90%; max-width: 450px; border-radius: 12px; padding: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-cart-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        .modal-cart-header h3 { color: #d81b60; font-size: 16px; }
+        .close-cart-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: #888; }
+        .cart-items-list { flex: 1; overflow-y: auto; margin-bottom: 15px; }
+        .cart-item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #eee; font-size: 13px; }
+        .cart-item-qty { display: flex; align-items: center; gap: 8px; }
+        .qty-btn { background: #eee; border: none; width: 22px; height: 22px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .cart-summary { border-top: 2px solid #fff0f3; padding-top: 10px; margin-top: 10px; }
+        .cart-total-row { display: flex; justify-content: space-between; font-weight: 700; color: #d81b60; font-size: 15px; margin-bottom: 12px; }
+        .btn-checkout-wa { width: 100%; background: #25D366; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
 
-        .footer-content-left {
-            max-width: 400px; /* Dibuat lebih ringkas */
-            margin: 0 auto 0 0;
-            text-align: left;
-        }
-
-        .footer-store-name { font-size: 18px; font-weight: 700; color: #d81b60; margin-bottom: 8px; }
-        .footer-address { font-size: 13px; color: #555; margin-bottom: 10px; line-height: 1.5; }
-        .footer-phone { font-size: 14px; font-weight: 600; color: #25D366; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
-
-        /* PAPAN INFORMASI KOMPAK & TIDAK PANJANG */
-        .info-board-footer {
-            margin-bottom: 15px;
-        }
+        /* --- FOOTER RATA KIRI --- */
+        footer { background-color: #fff4f6; padding: 30px 5% 20px; margin-top: 40px; border-top: 1px solid #ffd6de; color: #5a3d44; }
+        .footer-content-left { max-width: 420px; margin: 0 auto 0 0; text-align: left; }
+        .footer-store-name { font-size: 18px; font-weight: 700; color: #d81b60; margin-bottom: 10px; }
         
-        .info-board-footer h4 { 
-            font-size: 12px; 
-            color: #d81b60; 
-            margin-bottom: 6px; 
-            font-weight: 700; 
-            text-align: left; 
-        }
-
-        .info-cards-footer { 
-            display: flex; 
-            flex-direction: column; 
-            gap: 5px; 
-            max-width: 320px; /* Lebar box diringkas agar pas dan tidak panjang */
-        }
+        .footer-address { font-size: 13px; color: #555; margin-bottom: 10px; line-height: 1.5; display: flex; align-items: flex-start; gap: 10px; }
+        .footer-address i { font-size: 16px; color: #ff6584; margin-top: 3px; }
         
-        .info-card {
-            background: #fff;
-            padding: 6px 10px;
-            border-radius: 5px;
-            border-left: 3px solid #ff477e;
-            cursor: pointer;
-            text-align: left;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-        }
+        .footer-phone { font-size: 14px; font-weight: 600; color: #25D366; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        .footer-phone i { font-size: 16px; }
 
-        .info-card h3 {
-            font-size: 11px;
-            color: #333;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
+        .info-board-footer { margin-bottom: 15px; }
+        .info-board-footer h4 { font-size: 12px; color: #d81b60; margin-bottom: 6px; font-weight: 700; text-align: left; }
+        .info-cards-footer { display: flex; flex-direction: column; gap: 5px; max-width: 320px; }
+        
+        .info-card { background: #fff; padding: 6px 10px; border-radius: 5px; border-left: 3px solid #ff477e; cursor: pointer; text-align: left; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .info-card h3 { font-size: 11px; color: #333; display: flex; align-items: center; justify-content: space-between; }
         .info-card h3 i.icon-left { color: #ff477e; margin-right: 5px; }
 
-        .info-content {
-            display: none;
-            margin-top: 4px;
-            font-size: 10px;
-            color: #666;
-            line-height: 1.3;
-            border-top: 1px dashed #ffd6de;
-            padding-top: 4px;
-        }
-
+        .info-content { display: none; margin-top: 4px; font-size: 10px; color: #666; line-height: 1.3; border-top: 1px dashed #ffd6de; padding-top: 4px; }
         .info-card.active .info-content { display: block; }
         .info-card.active .fa-chevron-down { transform: rotate(180deg); }
 
         .follow-us-title { font-size: 11px; font-weight: 700; color: #333; margin-bottom: 5px; text-transform: uppercase; }
         .social-icons { display: flex; gap: 8px; }
-        .social-icons a {
-            width: 28px; height: 28px; border-radius: 50%;
-            background: #fff; display: flex; align-items: center; justify-content: center;
-            color: #ff477e; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-        }
+        .social-icons a { width: 28px; height: 28px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; color: #ff477e; text-decoration: none; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
 
-        .footer-bottom {
-            padding-top: 15px;
-            border-top: 1px solid #ffd6de;
-            font-size: 12px;
-            color: #886670;
-            text-align: center;
-            margin-top: 20px;
-        }
+        .footer-bottom { padding-top: 15px; border-top: 1px solid #ffd6de; font-size: 12px; color: #886670; text-align: center; margin-top: 20px; }
 
         @media (max-width: 768px) {
             .top-bar { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -633,17 +406,13 @@
                     <i class="fa-solid fa-location-dot"></i>
                     <div>
                         <strong>Offline Store</strong><br>
-                        <small>Jl. Kaliwader - Wadas Pacean 02/01 Kaliwader,Bener,Purworejo</small>
+                        <small>Jl. Kaliwader - Wadas Pacean</small>
                     </div>
                 </div>
-                <div class="info-item">
-                    <i class="fa-solid fa-percentage"></i>
-                    <div>
-                        <strong>Dapatkan Poin</strong><br>
-                        <small>Setiap belanja</small>
-                    </div>
-                </div>
-                <a href="#" class="cart-btn"><i class="fa-solid fa-bag-shopping"></i> (Rp 0)</a>
+                <!-- TOMBOL KERANJANG BELANJA -->
+                <button class="cart-btn" onclick="toggleCartModal()">
+                    <i class="fa-solid fa-bag-shopping"></i> <span id="cart-btn-text">(0) Rp 0</span>
+                </button>
             </div>
         </div>
 
@@ -663,30 +432,30 @@
 
     <!-- BANNER UTAMA -->
     <div class="banner-container">
-        <div class="banner-box pink">
+        <div class="banner-box pink" onclick="filterByCategory('Diapers')">
             <div class="banner-text">
                 <small>Menyediakan</small>
                 <h3>Popok Bayi</h3>
                 <p>Menyediakan Popok Bayi Lengkap</p>
-                <button class="banner-btn" onclick="filterByBrand('all')">Beli Sekarang</button>
+                <button class="banner-btn">Beli Sekarang</button>
             </div>
             <div class="banner-img-icon"><i class="fa-solid fa-box-archive"></i></div>
         </div>
-        <div class="banner-box">
+        <div class="banner-box" onclick="filterByCategory('Baby Hygiene')">
             <div class="banner-text">
                 <small>Menyediakan</small>
-                <h3>Tissue</h3>
+                <h3>Tissue & Hygiene</h3>
                 <p>Berbagai jenis dan merk Tissue</p>
-                <button class="banner-btn" style="background:#0277bd;" onclick="filterByBrand('all')">Cari Sekarang</button>
+                <button class="banner-btn" style="background:#0277bd;">Cari Sekarang</button>
             </div>
             <div class="banner-img-icon" style="color: #0277bd;"><i class="fa-solid fa-pump-soap"></i></div>
         </div>
-        <div class="banner-box purple">
+        <div class="banner-box purple" onclick="filterByCategory('Susu Formula')">
             <div class="banner-text">
                 <small>Menyediakan</small>
-                <h3>Susu Bayi</h3>
+                <h3>Susu Formula</h3>
                 <p>Susu Bayi murah & original</p>
-                <button class="banner-btn" onclick="filterByBrand('SGM')">Beli Sekarang</button>
+                <button class="banner-btn">Beli Sekarang</button>
             </div>
             <div class="banner-img-icon" style="color: #ad1457;"><i class="fa-solid fa-bottle-water"></i></div>
         </div>
@@ -694,55 +463,79 @@
 
     <!-- IKON KATEGORI CEPAT -->
     <div class="quick-categories">
-        <div class="cat-item" onclick="filterByBrand('all')"><div class="cat-icon"><i class="fa-solid fa-droplet"></i></div><span>Tissue Basah</span></div>
-        <div class="cat-item" onclick="filterByBrand('all')"><div class="cat-icon"><i class="fa-solid fa-scroll"></i></div><span>Tissue Kering</span></div>
-        <div class="cat-item" onclick="filterByBrand('all')"><div class="cat-icon"><i class="fa-solid fa-bottle-droplet"></i></div><span>Susu Dewasa</span></div>
-        <div class="cat-item" onclick="filterByBrand('all')"><div class="cat-icon"><i class="fa-solid fa-pills"></i></div><span>Vitamin</span></div>
-        <div class="cat-item" onclick="filterByBrand('all')"><div class="cat-icon"><i class="fa-solid fa-soap"></i></div><span>Sabun Bayi</span></div>
-        <div class="cat-item" onclick="filterByBrand('MamyPoko')"><div class="cat-icon"><i class="fa-solid fa-box"></i></div><span>Popok Bayi</span></div>
-        <div class="cat-item" onclick="filterByBrand('SGM')"><div class="cat-icon"><i class="fa-solid fa-baby-carriage"></i></div><span>Susu Anak</span></div>
+        <div class="cat-item" onclick="filterByCategory('Diapers')">
+            <div class="cat-icon"><i class="fa-solid fa-box"></i></div>
+            <span>Diapers</span>
+        </div>
+        <div class="cat-item" onclick="filterByCategory('Baby Hygiene & Grooming')">
+            <div class="cat-icon"><i class="fa-solid fa-pump-soap"></i></div>
+            <span>Baby Hygiene & Grooming</span>
+        </div>
+        <div class="cat-item" onclick="filterByCategory('Baby Bath & Skincare')">
+            <div class="cat-icon"><i class="fa-solid fa-bath"></i></div>
+            <span>Baby Bath & Skincare</span>
+        </div>
+        <div class="cat-item" onclick="filterByCategory('Mom')">
+            <div class="cat-icon"><i class="fa-solid fa-person-breastfeeding"></i></div>
+            <span>Mom</span>
+        </div>
+        <div class="cat-item" onclick="filterByCategory('Susu Formula')">
+            <div class="cat-icon"><i class="fa-solid fa-bottle-droplet"></i></div>
+            <span>Susu Formula</span>
+        </div>
     </div>
 
-    <!-- BRAND RUNNING SCROLL (NON-KLIK & SEAMLESS) -->
+    <!-- BRAND RUNNING SCROLL -->
     <div class="brand-section">
         <div class="brand-title">Brand Pilihan Terbaik</div>
         <div class="brand-track" id="brand-track">
-            <!-- Konten brand akan dimuat dinamis dari database & diduplikasi otomatis oleh script -->
+            <!-- Dimuat dinamis -->
         </div>
     </div>
 
     <!-- MAIN CONTAINER PRODUK -->
-    <div class="container">
+    <div class="container" id="catalog-section">
         
         <!-- PRODUK BEST SELLER -->
         <div class="section-title"><i class="fa-solid fa-fire" style="color: #ffa502;"></i> Produk Best Seller</div>
         <div class="product-grid" id="bestseller-grid">
-            <div class="product-card" data-brand="MamyPoko">
-                <span class="bestseller-badge"><i class="fa-solid fa-trophy"></i> Best Seller</span>
-                <div class="product-img-box"><img src="https://cdn-icons-png.flaticon.com/512/3082/3082060.png" class="product-img"></div>
-                <div class="product-brand-tag">MamyPoko</div>
-                <h3 class="product-title">MamyPoko Pants Royal Soft</h3>
-                <div class="price-container"><span class="product-price">Rp 62.000</span></div>
-                <button class="btn-wa" onclick="buyViaWA('MamyPoko Pants Royal Soft', 'Rp 62.000')"><i class="fa-brands fa-whatsapp"></i> Beli Sekarang</button>
-            </div>
+            <!-- Dimuat dinamis -->
         </div>
 
         <!-- PRODUK PROMO DISKON -->
         <div class="section-title"><i class="fa-solid fa-tags" style="color: #ff4757;"></i> Produk Promo & Diskon</div>
         <div class="product-grid" id="discount-grid">
-            <div class="product-card" data-brand="Pampers">
-                <span class="discount-badge">Diskon 15%</span>
-                <div class="product-img-box"><img src="https://cdn-icons-png.flaticon.com/512/3082/3082110.png" class="product-img"></div>
-                <div class="product-brand-tag">Pampers</div>
-                <h3 class="product-title">Pampers Premium Care</h3>
-                <div class="price-container">
-                    <span class="original-price">Rp 85.000</span>
-                    <span class="product-price">Rp 72.000</span>
-                </div>
-                <button class="btn-wa" onclick="buyViaWA('Pampers Premium Care', 'Rp 72.000')"><i class="fa-brands fa-whatsapp"></i> Beli Sekarang</button>
-            </div>
+            <!-- Dimuat dinamis -->
         </div>
 
+        <!-- SEMUA PRODUK -->
+        <div class="section-title"><i class="fa-solid fa-store" style="color: #ff477e;"></i> Semua Produk Toko</div>
+        <div class="product-grid" id="all-products-grid">
+            <!-- Dimuat dinamis lengkap dengan Size & Foto yang berubah -->
+        </div>
+
+    </div>
+
+    <!-- MODAL KERANJANG BELANJA -->
+    <div class="modal-cart-overlay" id="cart-modal">
+        <div class="modal-cart-content">
+            <div class="modal-cart-header">
+                <h3><i class="fa-solid fa-cart-shopping"></i> Keranjang Belanja Anda</h3>
+                <button class="close-cart-btn" onclick="toggleCartModal()">&times;</button>
+            </div>
+            <div class="cart-items-list" id="cart-items-container">
+                <p style="text-align: center; color: #888; font-size: 13px;">Keranjang belanja masih kosong.</p>
+            </div>
+            <div class="cart-summary">
+                <div class="cart-total-row">
+                    <span>Total Pembayaran:</span>
+                    <span id="cart-total-price">Rp 0</span>
+                </div>
+                <button class="btn-checkout-wa" onclick="checkoutToWA()">
+                    <i class="fa-brands fa-whatsapp"></i> Checkout via WhatsApp
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- FLOATING LOGO WA -->
@@ -750,20 +543,23 @@
         <i class="fa-brands fa-whatsapp"></i>
     </a>
 
-    <!-- FOOTER: INFORMASI TOKO & PAPAN INFORMASI DI ATAS FOLLOW US -->
+    <!-- FOOTER -->
     <footer>
         <div class="footer-content-left">
             <div class="footer-store-name" id="footer-name"><i class="fa-solid fa-store"></i> Anil Babyshop</div>
+            
             <div class="footer-address">
-                <i class="fa-solid fa-location-dot"></i>
+                <i class="fa-solid fa-map-location-dot"></i>
                 <div id="footer-address-text">
-                    <strong>Alamat Offline Store:</strong><br>
-                    Jl. Kaliwader - Wadas Pacean 02/01 Kaliwader,Bener,Purworejo.
+                    Jl. Kaliwader - Wadas Pacean 02/01 Kaliwader, Bener, Purworejo.
                 </div>
             </div>
-            <div class="footer-phone"><i class="fa-brands fa-whatsapp"></i> <span id="footer-phone">+62 822 2017 0073</span></div>
+
+            <div class="footer-phone">
+                <i class="fa-brands fa-whatsapp"></i>
+                <span id="footer-phone">+62 822 2017 0073</span>
+            </div>
             
-            <!-- PAPAN INFORMASI KOMPAK (DI BAWAH WA & DI ATAS FOLLOW US) -->
             <div class="info-board-footer">
                 <h4><i class="fa-solid fa-circle-info"></i> Papan Informasi Toko</h4>
                 <div class="info-cards-footer" id="footer-info-cards">
@@ -773,11 +569,11 @@
                     </div>
                     <div class="info-card">
                         <h3><span><i class="fa-solid fa-truck-fast icon-left"></i> Informasi Pengiriman</span> <i class="fa-solid fa-chevron-down"></i></h3>
-                        <div class="info-content">Kami melayani pengiriman ke seluruh Indonesia. Pesanan sebelum jam 15.00 WIB dikirim pada hari yang sama.</div>
+                        <div class="info-content">Kami melayani pengiriman lokal dan ke seluruh wilayah. Pesanan sebelum jam 15.00 WIB dikirim pada hari yang sama.</div>
                     </div>
                     <div class="info-card">
                         <h3><span><i class="fa-solid fa-shield-heart icon-left"></i> Kebijakan Garansi</span> <i class="fa-solid fa-chevron-down"></i></h3>
-                        <div class="info-content">Seluruh produk dijamin 100% Original. Garansi retur jika produk rusak saat diterima.</div>
+                        <div class="info-content">Seluruh produk dijamin 100% Original. Garansi retur/tukar jika barang yang diterima tidak sesuai atau rusak.</div>
                     </div>
                 </div>
             </div>
@@ -795,30 +591,88 @@
         </div>
     </footer>
 
-    <!-- JAVASCRIPT LOGIC -->
+    <!-- LOGIKA KERANJANG BELANJA & CHECKOUT WA -->
     <script>
-        function filterByBrand(brandName, btnElement) {
-            if (btnElement) {
-                document.querySelectorAll('.brand-item').forEach(item => item.classList.remove('active'));
-                btnElement.classList.add('active');
-            }
-
-            document.querySelectorAll('.product-card').forEach(card => {
-                const cardBrand = card.getAttribute('data-brand');
-                if (brandName === 'all' || cardBrand === brandName) {
-                    card.style.display = 'flex';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
+        function parsePrice(priceStr) {
+            return parseInt(priceStr.replace(/[^0-9]/g, '')) || 0;
         }
 
-        function buyViaWA(productName, price) {
+        function formatRupiah(number) {
+            return 'Rp ' + number.toLocaleString('id-ID');
+        }
+
+        function updateCartQty(cartItemId, change) {
+            const index = window.cart.findIndex(item => item.cartItemId === cartItemId);
+            if (index !== -1) {
+                window.cart[index].qty += change;
+                if (window.cart[index].qty <= 0) {
+                    window.cart.splice(index, 1);
+                }
+            }
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            let totalItems = 0;
+            let totalPrice = 0;
+            const container = document.getElementById('cart-items-container');
+
+            if (window.cart.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #888; font-size: 13px;">Keranjang belanja masih kosong.</p>';
+            } else {
+                let html = '';
+                window.cart.forEach(item => {
+                    const priceNum = parsePrice(item.price);
+                    const itemTotal = priceNum * item.qty;
+                    totalItems += item.qty;
+                    totalPrice += itemTotal;
+
+                    html += `
+                        <div class="cart-item-row">
+                            <div>
+                                <strong>${item.name}</strong><br>
+                                <small style="color:#d81b60;">${item.price}</small>
+                            </div>
+                            <div class="cart-item-qty">
+                                <button class="qty-btn" onclick="updateCartQty('${item.cartItemId}', -1)">-</button>
+                                <span>${item.qty}</span>
+                                <button class="qty-btn" onclick="updateCartQty('${item.cartItemId}', 1)">+</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            }
+
+            document.getElementById('cart-btn-text').innerText = `(${totalItems}) ${formatRupiah(totalPrice)}`;
+            document.getElementById('cart-total-price').innerText = formatRupiah(totalPrice);
+        }
+
+        function toggleCartModal() {
+            const modal = document.getElementById('cart-modal');
+            modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
+        }
+
+        function checkoutToWA() {
+            if (window.cart.length === 0) {
+                alert("Keranjang belanja Anda masih kosong!");
+                return;
+            }
+
             const phoneNumber = "6282220170073";
-            const message = `Halo Anil Babyshop, saya ingin membeli:\n` +
-                            `- *Produk:* ${productName}\n` +
-                            `- *Harga:* ${price}\n\n` +
-                            `Apakah stok produk ini masih tersedia?`;
+            let itemLines = "";
+            let totalPrice = 0;
+
+            window.cart.forEach((item, index) => {
+                const itemTotal = parsePrice(item.price) * item.qty;
+                totalPrice += itemTotal;
+                itemLines += `${index + 1}. *${item.name}* x${item.qty} (${item.price})\n`;
+            });
+
+            const message = `Halo Anil Babyshop, saya ingin memesan produk berikut:\n\n` +
+                            `${itemLines}\n` +
+                            `*Total Pembayaran:* ${formatRupiah(totalPrice)}\n\n` +
+                            `Mohon diproses, terima kasih!`;
 
             window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, '_blank');
         }
